@@ -16,6 +16,7 @@ jobs:
         run: |
           shopt -s nullglob
           found=0
+          mkdir -p "$GITHUB_WORKSPACE/output_rpk"
           for z in *.zip; do
             found=1
             name="${z%.zip}"
@@ -23,21 +24,28 @@ jobs:
             mkdir -p "out/$name"
             unzip -o "$z" -d "out/$name"
             
-            TARGET_DIR=$(find "out/$name" -name "package.json" -exec dirname {} \;)
+            # Находим, где реально лежит manifest.json
+            MANIFEST_DIR=$(find "out/$name" -name "manifest.json" -exec dirname {} \;)
             
-            if [ -n "$TARGET_DIR" ]; then
-              echo "Found package.json in: $TARGET_DIR"
+            if [ -n "$MANIFEST_DIR" ]; then
+              # Поднимаемся на один уровень выше папки src, туда где должен быть package.json
+              TARGET_DIR=$(dirname "$MANIFEST_DIR")
+              echo "=== Switching to project directory: $TARGET_DIR ==="
               cd "$TARGET_DIR"
+              
+              # Если package.json остался в самом корне архива, копируем его сюда
+              if [ ! -f "package.json" ]; then
+                cp "$GITHUB_WORKSPACE/out/$name/package.json" ./ 2>/dev/null || cp "$GITHUB_WORKSPACE/out/$name/*/package.json" ./ 2>/dev/null || true
+               Downs
+              fi
+              
               npm install
+              npx aiot build || npx aiot release
               
-              # Запуск полноценного релиза для генерации .rpk файла
-              npx aiot release
-              
-              # Переносим готовый rpk повыше, чтобы его было легче забрать
-              mkdir -p "$GITHUB_WORKSPACE/output_rpk"
-              find dist/ -name "*.rpk" -exec cp {} "$GITHUB_WORKSPACE/output_rpk/" \;
+              # Копируем созданный .rpk файл в безопасное место
+              find . -name "*.rpk" -not -path "*/node_modules/*" -exec cp {} "$GITHUB_WORKSPACE/output_rpk/" \;
             else
-              echo "Error: package.json not found!"
+              echo "Error: manifest.json not found anywhere in the zip!"
               exit 1
             fi
             cd "$GITHUB_WORKSPACE"
@@ -47,6 +55,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rpk-build
-          # Забираем только наш маленький файл .rpk без лишнего веса
           path: output_rpk/*.rpk
           if-no-files-found: error
