@@ -22,7 +22,19 @@ jobs:
             name="${name// /_}"
             mkdir -p "out/$name"
             unzip -o "$z" -d "out/$name"
-            (cd "out/$name" && npm install && npx aiot build)
+            
+            # Поиск папки, в которой реально лежит package.json
+            TARGET_DIR=$(find "out/$name" -name "package.json" -exec dirname {} \;)
+            
+            if [ -n "$TARGET_DIR" ]; then
+              echo "Found package.json in: $TARGET_DIR"
+              cd "$TARGET_DIR"
+              npm install && npx aiot build
+            else
+              echo "Error: package.json not found anywhere in the zip!"
+              exit 1
+            fi
+            cd "$GITHUB_WORKSPACE"
           done
           if [ "$found" = 0 ]; then echo "No zip files in repo root"; exit 1; fi
           find out -name "*.rpk" -not -path "*/node_modules/*"
@@ -31,5 +43,5 @@ jobs:
         with:
           name: rpk-build
           path: |
-            out/*/dist/*.rpk
+            out/**/dist/*.rpk
           if-no-files-found: error
