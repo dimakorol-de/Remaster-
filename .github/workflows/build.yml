@@ -16,7 +16,6 @@ jobs:
         run: |
           shopt -s nullglob
           found=0
-          mkdir -p "$GITHUB_WORKSPACE/final_rpk"
           for z in *.zip; do
             found=1
             name="${z%.zip}"
@@ -30,10 +29,13 @@ jobs:
               echo "Found package.json in: $TARGET_DIR"
               cd "$TARGET_DIR"
               npm install
-              npx aiot build
               
-              # Копируем ИСКЛЮЧИТЕЛЬНО .rpk файлы в чистую папку для выдачи
-              find . -name "*.rpk" -not -path "*/node_modules/*" -exec cp {} "$GITHUB_WORKSPACE/final_rpk/" \;
+              # Запуск полноценного релиза для генерации .rpk файла
+              npx aiot release
+              
+              # Переносим готовый rpk повыше, чтобы его было легче забрать
+              mkdir -p "$GITHUB_WORKSPACE/output_rpk"
+              find dist/ -name "*.rpk" -exec cp {} "$GITHUB_WORKSPACE/output_rpk/" \;
             else
               echo "Error: package.json not found!"
               exit 1
@@ -45,6 +47,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rpk-build
-          # Теперь загружается только точечный файл .rpk из изолированной папки
-          path: final_rpk/
+          # Забираем только наш маленький файл .rpk без лишнего веса
+          path: output_rpk/*.rpk
           if-no-files-found: error
