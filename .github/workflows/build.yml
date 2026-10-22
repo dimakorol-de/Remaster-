@@ -24,26 +24,19 @@ jobs:
             mkdir -p "out/$name"
             unzip -o "$z" -d "out/$name"
             
-            # Находим, где реально лежит manifest.json
             MANIFEST_DIR=$(find "out/$name" -name "manifest.json" -exec dirname {} \;)
             
             if [ -n "$MANIFEST_DIR" ]; then
-              # Поднимаемся на один уровень выше папки src, туда где должен быть package.json
               TARGET_DIR=$(dirname "$MANIFEST_DIR")
               echo "=== Switching to project directory: $TARGET_DIR ==="
               cd "$TARGET_DIR"
               
-              # Если package.json остался в самом корне архива, копируем его сюда
               if [ ! -f "package.json" ]; then
                 cp "$GITHUB_WORKSPACE/out/$name/package.json" ./ 2>/dev/null || cp "$GITHUB_WORKSPACE/out/$name/*/package.json" ./ 2>/dev/null || true
-               Downs
               fi
               
               npm install
-              npx aiot build || npx aiot release
-              
-              # Копируем созданный .rpk файл в безопасное место
-              find . -name "*.rpk" -not -path "*/node_modules/*" -exec cp {} "$GITHUB_WORKSPACE/output_rpk/" \;
+              npx aiot build
             else
               echo "Error: manifest.json not found anywhere in the zip!"
               exit 1
@@ -51,9 +44,16 @@ jobs:
             cd "$GITHUB_WORKSPACE"
           done
           if [ "$found" = 0 ]; then echo "No zip files in repo root"; exit 1; fi
+          
+          # ГЛОБАЛЬНЫЙ ПОИСК: Ищем .rpk по всей системе Linux (кроме node_modules)
+          echo "=== Starting Deep System Search for RPK files ==="
+          sudo find / -name "*.rpk" -not -path "*/node_modules/*" -not -path "*/proc/*" -not -path "*/sys/*" -exec cp {} "$GITHUB_WORKSPACE/output_rpk/" \; 2>/dev/null || true
+          
+          echo "=== Check contents of output folder ==="
+          ls -la "$GITHUB_WORKSPACE/output_rpk" || echo "Folder is empty"
       - name: Upload RPK
         uses: actions/upload-artifact@v4
         with:
           name: rpk-build
-          path: output_rpk/*.rpk
+          path: output_rpk/
           if-no-files-found: error
