@@ -16,6 +16,7 @@ jobs:
         run: |
           shopt -s nullglob
           found=0
+          mkdir -p "$GITHUB_WORKSPACE/final_rpk"
           for z in *.zip; do
             found=1
             name="${z%.zip}"
@@ -30,8 +31,11 @@ jobs:
               cd "$TARGET_DIR"
               npm install
               npx aiot build
+              
+              # Копируем ИСКЛЮЧИТЕЛЬНО .rpk файлы в чистую папку для выдачи
+              find . -name "*.rpk" -not -path "*/node_modules/*" -exec cp {} "$GITHUB_WORKSPACE/final_rpk/" \;
             else
-              echo "Error: package.json not found anywhere in the zip!"
+              echo "Error: package.json not found!"
               exit 1
             fi
             cd "$GITHUB_WORKSPACE"
@@ -41,6 +45,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rpk-build
-          # Изменено: загружаем всю папку out со всеми вложенными файлами и dist папочками
-          path: out/
+          # Теперь загружается только точечный файл .rpk из изолированной папки
+          path: final_rpk/
           if-no-files-found: error
