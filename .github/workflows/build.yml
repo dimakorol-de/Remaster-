@@ -16,7 +16,7 @@ jobs:
         run: |
           shopt -s nullglob
           found=0
-          mkdir -p final_rpk
+          mkdir -p "$GITHUB_WORKSPACE/final_rpk"
           for z in *.zip; do
             found=1
             name="${z%.zip}"
@@ -30,9 +30,6 @@ jobs:
               echo "Found package.json in: $TARGET_DIR"
               cd "$TARGET_DIR"
               npm install && npx aiot build
-              
-              # Копируем скомпилированные rpk файлы в отдельную чистую папку
-              find . -name "*.rpk" -exec cp {} "$GITHUB_WORKSPACE/final_rpk/" \;
             else
               echo "Error: package.json not found anywhere in the zip!"
               exit 1
@@ -40,6 +37,13 @@ jobs:
             cd "$GITHUB_WORKSPACE"
           done
           if [ "$found" = 0 ]; then echo "No zip files in repo root"; exit 1; fi
+          
+          # Тотальный поиск любого созданного .rpk файла во всех папках репозитория
+          echo "Searching for compiled RPK files..."
+          find . -name "*.rpk" -not -path "*/node_modules/*" -exec cp {} "$GITHUB_WORKSPACE/final_rpk/" \;
+          
+          # Посмотрим в логи, нашлось ли что-то
+          ls -la "$GITHUB_WORKSPACE/final_rpk/" || echo "final_rpk folder is empty!"
       - name: Upload RPK
         uses: actions/upload-artifact@v4
         with:
