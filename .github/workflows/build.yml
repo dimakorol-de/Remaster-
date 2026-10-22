@@ -1,3 +1,17 @@
+name: Build RPK
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '*.zip'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
       - name: Build projects
         run: |
           shopt -s nullglob
@@ -8,21 +22,14 @@
             name="${name// /_}"
             mkdir -p "out/$name"
             unzip -o "$z" -d "out/$name"
-            
-            # Исправление: если файлы оказались внутри подпапки, заходим в неё
-            cd "out/$name"
-            if [ ! -f "package.json" ]; then
-              cd */ 2>/dev/null || true
-            fi
-            
-            if [ -f "package.json" ]; then
-              npm install && npx aiot build
-            else
-              echo "Error: package.json not found even in subfolders!"
-              exit 1
-            fi
-            # Возвращаемся в корень для следующего архива
-            cd "$GITHUB_WORKSPACE"
+            (cd "out/$name" && npm install && npx aiot build)
           done
           if [ "$found" = 0 ]; then echo "No zip files in repo root"; exit 1; fi
           find out -name "*.rpk" -not -path "*/node_modules/*"
+      - name: Upload RPK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpk-build
+          path: |
+            out/*/dist/*.rpk
+          if-no-files-found: error
